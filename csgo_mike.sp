@@ -38,6 +38,7 @@ bool
     g_bSetCvars = false,
 
     g_bWarmup = false,
+    g_bWasMike[MAXPLAYERS+1] = { false, ... },
 
     g_bDefaultSolidTeammates = false,
 
@@ -199,6 +200,8 @@ public void OnMapEnd()
 public void OnClientPutInServer(int client)
 {
     if (!g_bPluginState) return;
+
+    g_bWasMike[client] = false;
 
     SDKHook(client, SDKHook_OnTakeDamage, SDK_OnTakeDamage);
     SDKHook(client, SDKHook_WeaponDrop, SDK_OnWeaponDrop);
@@ -561,6 +564,20 @@ void ResetCvars()
 /**
  * Functions
  */
+bool NeedsReset()
+{
+    for(int i = 0; i < sizeof(g_bWasMike); i++)
+    {
+        if (IsValidClient(i, true) && !g_bWasMike[i])
+        {
+            int iTeam = GetClientTeam(i);
+            if (iTeam != TEAM_SPEC)
+                return false;
+        }
+    }
+
+    return true;
+}
 bool IsValidClient(int client, bool bAlive = false)
 {
 	if(client >= 1 && client <= MaxClients && IsClientConnected(client) && IsClientInGame(client) && (!bAlive || IsPlayerAlive(client)))
@@ -607,19 +624,24 @@ int GetLastSurvivorPlayer()
     }
     return -1;
 }
-int GetRandomClient()
+int GetNextMikeMyers()
 {
+    if (NeedsReset())
+        for(int i = 0; i < sizeof(g_bWasMike); i++)
+            g_bWasMike[i] = false;
+
     int count = 0;
     int[] clients = new int[MaxClients];
     for (int i = 1; i <= MaxClients; i++)
-    {
-        if(IsValidClient(i, true))
-        {
-            int team = GetClientTeam(i);
-            if (team == TEAM_CT) clients[count++] = i;
-        }
-    }
-    return (count == 0) ? -1 : clients[GetRandomInt(0, count-1)];
+        if(IsValidClient(i, true) && !g_bWasMike[i] && GetClientTeam(i) == TEAM_CT)
+            clients[count++] = i;
+
+    if (count == 0) return -1;
+
+    int iRandom = GetRandomInt(0, count-1);
+    g_bWasMike[clients[iRandom]] = true;
+
+    return clients[iRandom];
 }
 
 /**
@@ -652,7 +674,7 @@ Action Timer_PrepareGame(Handle timer)
     if (g_iSetupTimer == 0) {
         do
         {
-            g_iMike = GetRandomClient();
+            g_iMike = GetNextMikeMyers();
         }
         while(g_iMike == -1);
 
