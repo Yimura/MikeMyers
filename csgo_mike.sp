@@ -173,6 +173,8 @@ public void OnPluginStart()
 			continue;
 		OnClientPutInServer(i);
 	}
+
+    AutoExecConfig(true, "mike_myers");
 }
 
 public void OnPluginEnd()
@@ -689,6 +691,17 @@ Action Timer_PrepareGame(Handle timer)
         g_hPrepareGameTimer = INVALID_HANDLE;
         g_iGameState = STATE_ACTIVE;
         g_iSetupTimer = g_cvSetupTimer.IntValue;
+
+        if (GetAlivePlayerCount() == 2 && GetAliveInTeam(TEAM_CT) == 1 && g_iGameState == STATE_ACTIVE)
+        {
+            int iLastSurvivor = GetLastSurvivorPlayer();
+            if (iLastSurvivor == -1) return Plugin_Stop;
+
+            g_iGameState = STATE_1V1;
+
+            Client_RemoveAllWeapons(iLastSurvivor);
+            GivePlayerItem(iLastSurvivor, "weapon_knife");
+        }
 
         return Plugin_Stop;
     }
