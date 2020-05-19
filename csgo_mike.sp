@@ -58,6 +58,9 @@ ConVar
     g_cvIgnoreRoundWinCondition,
     g_cvTeamBalance,
 
+    g_cvMikeSpeed,
+    g_cvSurvivorSpeed,
+
     g_cvFreezeTime,
     g_cvRestartGame,
 
@@ -75,13 +78,15 @@ ConVar
     g_cvPlayerCashAward,
     g_cvTeamCashAward;
 
-/*float
+float
     g_fMikeSpeed = 400.0,
     g_fSurvivorSpeed = 320.0,
 
-    g_fMikeDefSpeed = 400.0;*/
+    g_fMikeDefSpeed = 400.0;
 
 Handle
+    g_hSetSpeedTimer[MAXPLAYERS+1] = { INVALID_HANDLE, ... },
+
     g_hPrepareGameTimer = INVALID_HANDLE,
     //g_hEndGameTimer = INVALID_HANDLE,
     g_hSlowDownTimer = INVALID_HANDLE;
@@ -116,6 +121,9 @@ public void OnPluginStart()
     g_cvPluginState = CreateConVar("sm_mm_enable", "1", "Enable/Disable Mike Myers gamemode", FCVAR_NOTIFY, true, 0.0, true, 1.0);
     g_cvMMRoundTime = CreateConVar("sm_mm_roundtime", "5", "Set the round time before the CT's win.", FCVAR_NOTIFY, true, 0.0, true, 25.0);
     g_cvSetupTimer = CreateConVar("sm_mm_preptimer", "30", "Preparation timer before Mike Myers will be chosen.", FCVAR_NOTIFY, true, 0.0, true, 60.0);
+
+    g_cvSurvivorSpeed = CreateConVar("sm_mm_survivorspeed", "320.0", "Change the speed of the survivors.", FCVAR_NOTIFY, true, 220.0, true, 470.0);
+    g_cvMikeSpeed = CreateConVar("sm_mm_mikespeed", "400.0", "Change the speed of Mike Myers", FCVAR_NOTIFY, true, 220.0, true, 470.0);
 
     // Generic Source Events
     HookEvent("player_team", OnPlayerChangeTeam);
@@ -246,8 +254,9 @@ Action SDK_OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage
                     g_hSlowDownTimer = INVALID_HANDLE;
                 }
 
-                SetEntPropFloat(victim, Prop_Send, "m_flLaggedMovementValue", 0.8);
-                g_hSlowDownTimer = CreateTimer(2.0, Timer_RestoreSpeed, victim);
+                //SetEntPropFloat(victim, Prop_Send, "m_flLaggedMovementValue", 0.8);
+                g_fMikeSpeed = 260.0;
+                g_hSlowDownTimer = CreateTimer(3.0, Timer_RestoreSpeed, victim);
             }
         }
 
@@ -269,6 +278,19 @@ Action SDK_OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage
     damage = float(GetClientHealth(victim) + GetClientArmor(victim));
 
     return Plugin_Changed;
+}
+Action SDK_OnPreThink(int client)
+{
+    int iTeam = GetClientTeam(client);
+    if (IsValidClient(client, true))
+    {
+        if (iTeam == TEAM_T)
+            SetSpeed(client, g_fMikeSpeed);
+        else if (iTeam == TEAM_CT)
+            SetSpeed(client, g_fSurvivorSpeed);
+    }
+
+    return Plugin_Continue;
 }
 
 /**
@@ -322,6 +344,8 @@ Action OnPlayerSpawn(Event event, const char[] name, bool dontBroadCast)
         GivePlayerItem(client, "weapon_knife_t");
     }
 
+    g_hSetSpeedTimer[client] = CreateTimer(0.5, Timer_SetSpeed, client, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
+
     return Plugin_Continue;
 }
 Action PrePlayerSpawn(Event event, const char[] name, bool dontBroadCast)
@@ -335,16 +359,17 @@ Action PrePlayerSpawn(Event event, const char[] name, bool dontBroadCast)
 }
 Action OnPlayerDeath(Event event, const char[] name, bool dontBroadCast)
 {
-    if (GetAlivePlayerCount() == 2 && GetAliveInTeam(TEAM_CT) == 1 && g_iGameState == STATE_ACTIVE)
+    int client = GetClientOfUserId(event.GetInt("userid", -1));
+    if (client == -1) return Plugin_Continue;
+
+    if (g_hSetSpeedTimer[client] != INVALID_HANDLE)
     {
-        int iLastSurvivor = GetLastSurvivorPlayer();
-        if (iLastSurvivor == -1) return Plugin_Continue;
-
-        g_iGameState = STATE_1V1;
-
-        Client_RemoveAllWeapons(iLastSurvivor);
-        GivePlayerItem(iLastSurvivor, "weapon_knife");
+        KillTimer(g_hSetSpeedTimer[client]);
+        g_hSetSpeedTimer[client] = INVALID_HANDLE;
     }
+
+    Check1v1();
+
     return Plugin_Continue;
 }
 Action PrePlayerDeath(Event event, const char[] name, bool dontBroadCast)
@@ -442,7 +467,7 @@ Action OnRoundStart(Event event, const char[] name, bool dontBroadCast)
 Action OnRoundEnd(Event event, const char[] name, bool dontBroadCast)
 {
     if (g_bDebug)
-            PrintToServer("[MM] Event: OnRoundEnd, current gamestate %i", g_iGameState);
+        PrintToServer("[MM] Event: OnRoundEnd, current gamestate %i", g_iGameState);
 
     if (!g_bPluginState || g_iGameState == STATE_WARMUP || g_iGameState == STATE_MAP_LOADED || g_iGameState == STATE_PREP) return Plugin_Continue;
 
@@ -473,7 +498,7 @@ Action OnRoundEnd(Event event, const char[] name, bool dontBroadCast)
 Action OnPlayerChangeTeam(Event event, const char[] name, bool dontBroadCast)
 {
     if (g_bDebug)
-            PrintToServer("[MM] Event: OnPlayerChangeTeam, current gamestate %i", g_iGameState);
+        PrintToServer("[MM] Event: OnPlayerChangeTeam, current gamestate %i", g_iGameState);
 
     if (!g_bPluginState || g_iGameState != STATE_ACTIVE || g_iGameState != STATE_END) return Plugin_Continue;
 
@@ -537,6 +562,10 @@ void SetCvars()
 
     g_bDefaultSolidTeammates = g_cvSolidTeammates.BoolValue;
     g_cvSolidTeammates.SetBool(false, true, false);
+
+    g_fMikeSpeed = g_cvMikeSpeed.FloatValue;
+    g_fMikeDefSpeed = g_cvMikeSpeed.FloatValue;
+    g_fSurvivorSpeed = g_cvSurvivorSpeed.FloatValue;
 }
 
 void ResetCvars()
@@ -646,6 +675,26 @@ int GetNextMikeMyers()
     return clients[iRandom];
 }
 
+void Check1v1()
+{
+    if (GetAlivePlayerCount() == 2 && GetAliveInTeam(TEAM_CT) == 1 && g_iGameState == STATE_ACTIVE)
+    {
+        int iLastSurvivor = GetLastSurvivorPlayer();
+        if (iLastSurvivor == -1) return;
+
+        g_iGameState = STATE_1V1;
+        g_fSurvivorSpeed = g_fMikeDefSpeed;
+
+        Client_RemoveAllWeapons(iLastSurvivor);
+        GivePlayerItem(iLastSurvivor, "weapon_knife");
+    }
+}
+void SetSpeed(int client, float speed)
+{
+    SetEntPropFloat(client, Prop_Send, "m_flVelocityModifier", speed/250.0);
+    SetEntPropFloat(client, Prop_Send, "m_flMaxspeed", speed);
+}
+
 /**
  * Timers
  */
@@ -692,16 +741,7 @@ Action Timer_PrepareGame(Handle timer)
         g_iGameState = STATE_ACTIVE;
         g_iSetupTimer = g_cvSetupTimer.IntValue;
 
-        if (GetAlivePlayerCount() == 2 && GetAliveInTeam(TEAM_CT) == 1 && g_iGameState == STATE_ACTIVE)
-        {
-            int iLastSurvivor = GetLastSurvivorPlayer();
-            if (iLastSurvivor == -1) return Plugin_Stop;
-
-            g_iGameState = STATE_1V1;
-
-            Client_RemoveAllWeapons(iLastSurvivor);
-            GivePlayerItem(iLastSurvivor, "weapon_knife");
-        }
+        Check1v1();
 
         return Plugin_Stop;
     }
@@ -720,11 +760,20 @@ Action Timer_RespawnPlayer(Handle timer, int client)
 
 Action Timer_RestoreSpeed(Handle timer, int client)
 {
-    SetEntPropFloat(client, Prop_Send, "m_flLaggedMovementValue", 1.0);
+    //SetEntPropFloat(client, Prop_Send, "m_flLaggedMovementValue", 1.0);
+    g_fMikeSpeed = g_fMikeDefSpeed;
 
     g_hSlowDownTimer = INVALID_HANDLE;
 
     return Plugin_Stop;
+}
+Action Timer_SetSpeed(Handle timer, int client)
+{
+    if (IsValidClient(client, true))
+        SDKHook(client, SDKHook_PreThink, SDK_OnPreThink);
+    else
+        return Plugin_Stop;
+    return Plugin_Continue;
 }
 
 /**
