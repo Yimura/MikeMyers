@@ -10,7 +10,7 @@
 #pragma semicolon 1
 
 #define PLUGIN_AUTHOR "Yimura"
-#define PLUGIN_VERSION "0.1.0"
+#define PLUGIN_VERSION "0.1.1"
 
 #define TEAM_SPEC 1
 #define TEAM_T 2
