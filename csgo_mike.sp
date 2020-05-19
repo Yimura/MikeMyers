@@ -61,6 +61,7 @@ ConVar
     g_cvMikeSpeed,
     g_cvSurvivorSpeed,
 
+    g_cvRoundEndDelay,
     g_cvFreezeTime,
     g_cvRestartGame,
 
@@ -79,9 +80,12 @@ ConVar
     g_cvTeamCashAward;
 
 float
+    g_fRoundEndDelay,
+
     g_fMikeSpeed = 400.0,
     g_fSurvivorSpeed = 320.0,
 
+    g_fSurvivorDefSpeed = 320.0,
     g_fMikeDefSpeed = 400.0;
 
 Handle
@@ -94,6 +98,7 @@ Handle
 int
     g_iGameState = STATE_NONE,
 
+    g_iDefaultFreezeTime = -1,
     g_iDefaultBuyTime = -1,
     g_iDefaultTeamBalance = -1,
 
@@ -165,6 +170,7 @@ public void OnPluginStart()
 
     g_cvFreezeTime = FindConVar("mp_freezetime");
     g_cvRestartGame = FindConVar("mp_restartgame");
+    g_cvRoundEndDelay = FindConVar("mp_round_restart_delay");
 
     g_cvDeathDropGun = FindConVar("mp_death_drop_gun");
     g_cvDeathDropDefuser = FindConVar("mp_death_drop_defuser");
@@ -335,8 +341,7 @@ Action OnPlayerSpawn(Event event, const char[] name, bool dontBroadCast)
         Client_RemoveAllWeapons(client);
         GivePlayerItem(client, "weapon_hkp2000");
 
-        int iWeapon = GetPlayerWeaponSlot(client, CS_SLOT_SECONDARY);
-        SetEntProp(iWeapon, Prop_Send, "m_iPrimaryReserveAmmoCount", 0);
+        SetAmmo(client, CS_SLOT_SECONDARY, 2, 10);
     }
     else if (iTeam == TEAM_T)
     {
@@ -472,6 +477,8 @@ Action OnRoundEnd(Event event, const char[] name, bool dontBroadCast)
     if (!g_bPluginState || g_iGameState == STATE_WARMUP || g_iGameState == STATE_MAP_LOADED || g_iGameState == STATE_PREP) return Plugin_Continue;
 
     g_iGameState = STATE_END;
+    g_fMikeSpeed = g_fMikeDefSpeed;
+    g_fSurvivorSpeed = g_fSurvivorDefSpeed;
 
     //KillTimer(g_hAmmoTimer);
     //KillTimer(g_hEndGameTimer);
@@ -482,15 +489,7 @@ Action OnRoundEnd(Event event, const char[] name, bool dontBroadCast)
         g_hPrepareGameTimer = INVALID_HANDLE;
     }
 
-    for(int i = 1; i < MaxClients; i++)
-    {
-        if (IsValidClient(i, false))
-        {
-            int team = GetClientTeam(i);
-            if(team == TEAM_T)
-                ChangeClientTeam(i, TEAM_CT);
-        }
-    }
+    CreateTimer(g_fRoundEndDelay-0.2, Timer_SwitchAllToSurvivor);
 
     return Plugin_Continue;
 }
@@ -531,41 +530,45 @@ void SetCvars()
     g_bSetCvars = true;
 
     g_bDefaultPlayerCashCV = g_cvPlayerCashAward.BoolValue;
-    g_cvPlayerCashAward.SetBool(false, true, false);
+    g_cvPlayerCashAward.SetBool(false);
 
     g_bDefaultTeamCashCV = g_cvTeamCashAward.BoolValue;
-    g_cvTeamCashAward.SetBool(false, true, false);
+    g_cvTeamCashAward.SetBool(false);
 
     g_iDefaultRoundTime = g_cvRoundTime.IntValue;
     g_cvRoundTime.SetInt(g_cvMMRoundTime.IntValue);
     g_iDefaultRoundDefuseTime = g_cvRoundTimeDefuse.IntValue;
-    g_cvRoundTimeDefuse.SetInt(0, true, false);
+    g_cvRoundTimeDefuse.SetInt(0);
     g_iDefaultRoundHostageTime = g_cvRoundTimeHostage.IntValue;
-    g_cvRoundTimeHostage.SetInt(0, true, false);
+    g_cvRoundTimeHostage.SetInt(0);
 
     g_iDefaultTeamBalance = g_cvTeamBalance.IntValue;
-    g_cvTeamBalance.SetInt(0, true, false);
+    g_cvTeamBalance.SetInt(0);
 
     g_iDefaultBuyTime = g_cvBuyTime.IntValue;
-    g_cvBuyTime.SetInt(0, true, false);
+    g_cvBuyTime.SetInt(0);
 
-    g_cvFreezeTime.SetInt(1, true, false);
+    g_iDefaultFreezeTime = g_cvFreezeTime.IntValue;
+    g_cvFreezeTime.SetInt(1);
 
     g_iSetupTimer = g_cvSetupTimer.IntValue;
 
     g_bDefaultDeathDropGun = g_cvDeathDropGun.BoolValue;
     g_bDefaultDeathDropDefuser = g_cvDeathDropDefuser.BoolValue;
     g_bDefaultDeathDropGrenade = g_cvDeathDropGrenade.BoolValue;
-    g_cvDeathDropGun.SetBool(false, true, false);
-    g_cvDeathDropDefuser.SetBool(false, true, false);
-    g_cvDeathDropGrenade.SetBool(false, true, false);
+    g_cvDeathDropGun.SetBool(false);
+    g_cvDeathDropDefuser.SetBool(false);
+    g_cvDeathDropGrenade.SetBool(false);
 
     g_bDefaultSolidTeammates = g_cvSolidTeammates.BoolValue;
-    g_cvSolidTeammates.SetBool(false, true, false);
+    g_cvSolidTeammates.SetBool(false);
 
     g_fMikeSpeed = g_cvMikeSpeed.FloatValue;
     g_fMikeDefSpeed = g_cvMikeSpeed.FloatValue;
     g_fSurvivorSpeed = g_cvSurvivorSpeed.FloatValue;
+    g_fSurvivorDefSpeed = g_cvSurvivorSpeed.FloatValue;
+
+    g_fRoundEndDelay = g_cvRoundEndDelay.FloatValue;
 }
 
 void ResetCvars()
@@ -573,23 +576,23 @@ void ResetCvars()
     if (!g_bPluginState || !g_bSetCvars) return;
     g_bSetCvars = false;
 
-    g_cvPlayerCashAward.SetBool(g_bDefaultPlayerCashCV, true, false);
-    g_cvTeamCashAward.SetBool(g_bDefaultTeamCashCV, true, false);
+    g_cvPlayerCashAward.SetBool(g_bDefaultPlayerCashCV);
+    g_cvTeamCashAward.SetBool(g_bDefaultTeamCashCV);
 
-    g_cvRoundTimeDefuse.SetInt(g_iDefaultRoundDefuseTime, true, false);
-    g_cvRoundTimeHostage.SetInt(g_iDefaultRoundHostageTime, true, false);
-    g_cvRoundTime.SetInt(g_iDefaultRoundTime, true, false);
+    g_cvRoundTimeDefuse.SetInt(g_iDefaultRoundDefuseTime);
+    g_cvRoundTimeHostage.SetInt(g_iDefaultRoundHostageTime);
+    g_cvRoundTime.SetInt(g_iDefaultRoundTime);
 
-    g_cvTeamBalance.SetInt(g_iDefaultTeamBalance, true, false);
+    g_cvTeamBalance.SetInt(g_iDefaultTeamBalance);
 
-    g_cvBuyTime.SetInt(g_iDefaultBuyTime, true, false);
-    g_cvFreezeTime.SetInt(15, true, false);
+    g_cvBuyTime.SetInt(g_iDefaultBuyTime);
+    g_cvFreezeTime.SetInt(g_iDefaultFreezeTime);
 
-    g_cvDeathDropGun.SetBool(g_bDefaultDeathDropGun, true, false);
-    g_cvDeathDropDefuser.SetBool(g_bDefaultDeathDropDefuser, true, false);
-    g_cvDeathDropGrenade.SetBool(g_bDefaultDeathDropGrenade, true, false);
+    g_cvDeathDropGun.SetBool(g_bDefaultDeathDropGun);
+    g_cvDeathDropDefuser.SetBool(g_bDefaultDeathDropDefuser);
+    g_cvDeathDropGrenade.SetBool(g_bDefaultDeathDropGrenade);
 
-    g_cvSolidTeammates.SetBool(g_bDefaultSolidTeammates, true, false);
+    g_cvSolidTeammates.SetBool(g_bDefaultSolidTeammates);
 }
 
 /**
@@ -689,6 +692,20 @@ void Check1v1()
         GivePlayerItem(iLastSurvivor, "weapon_knife");
     }
 }
+void SetAmmo(int client, int wepslot, int clip, int ammo)
+{
+    int weapon = GetPlayerWeaponSlot(client, wepslot);
+    if (IsValidEntity(weapon))
+    {
+        //int iAmmoTable = FindSendPropInfo("CTFWeaponBase", "m_iClip1");
+        //SetEntData(weapon, iAmmoTable, clip, 4, true);
+
+        //int warray = GetEntProp(weapon, Prop_Send, "m_iPrimaryReserveAmmoCount");
+        //iAmmoTable = FindSendPropInfo("CTFPlayer", "m_iAmmo");
+        //SetEntData(client, iAmmoTable + iOffset, ammo, 4, true);
+        SetEntProp(weapon, Prop_Send, "m_iPrimaryReserveAmmoCount", ammo);
+    }
+}
 void SetSpeed(int client, float speed)
 {
     SetEntPropFloat(client, Prop_Send, "m_flVelocityModifier", speed/250.0);
@@ -774,6 +791,22 @@ Action Timer_SetSpeed(Handle timer, int client)
     else
         return Plugin_Stop;
     return Plugin_Continue;
+}
+Action Timer_SwitchAllToSurvivor(Handle timer)
+{
+    for(int i = 1; i < MaxClients; i++)
+    {
+        if (IsValidClient(i))
+        {
+            int team = GetClientTeam(i);
+            if (team == TEAM_T)
+            {
+                ChangeClientTeam(i, TEAM_CT);
+                if (!IsPlayerAlive(i))
+                    CS_RespawnPlayer(i);
+            }
+        }
+    }
 }
 
 /**
