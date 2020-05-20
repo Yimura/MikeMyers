@@ -519,7 +519,7 @@ Action PreRoundStart(Event event, const char[] name, bool dontBroadCast)
 Action OnRoundStart(Event event, const char[] name, bool dontBroadCast)
 {
     if (g_bDebug)
-            PrintToServer("[MM] Event: OnRoundStart, current gamestate %i", g_iGameState);
+        PrintToServer("[MM] Event: OnRoundStart, current gamestate %i", g_iGameState);
 
     if (!g_bPluginState || (g_iGameState != STATE_END && g_iGameState != STATE_PREP)) return Plugin_Continue;
 
