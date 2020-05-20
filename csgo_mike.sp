@@ -493,24 +493,6 @@ Action OnRoundStart(Event event, const char[] name, bool dontBroadCast)
     if (g_hPrepareGameTimer != INVALID_HANDLE) KillTimer(g_hPrepareGameTimer);
     g_hPrepareGameTimer = CreateTimer(1.0, Timer_PrepareGame, _, TIMER_REPEAT|TIMER_FLAG_NO_MAPCHANGE);
 
-    /*for(int client = 1; client < MaxClients; client++)
-    {
-        int iTeam = GetClientTeam(client);
-        if (iTeam == TEAM_CT)
-        {
-            Client_RemoveAllWeapons(client);
-            GivePlayerItem(client, "weapon_hkp2000");
-
-            int iWeapon = GetPlayerWeaponSlot(client, CS_SLOT_SECONDARY);
-            SetEntProp(iWeapon, Prop_Send, "m_iPrimaryReserveAmmoCount", 0);
-        }
-        else if (iTeam == TEAM_T)
-        {
-            Client_RemoveAllWeapons(client);
-            GivePlayerItem(client, "weapon_knife_t");
-        }
-    }*/
-
     return Plugin_Continue;
 }
 Action OnRoundEnd(Event event, const char[] name, bool dontBroadCast)
@@ -524,9 +506,6 @@ Action OnRoundEnd(Event event, const char[] name, bool dontBroadCast)
     g_fMikeSpeed = g_fMikeDefSpeed;
     g_fSurvivorSpeed = g_fSurvivorDefSpeed;
 
-    //KillTimer(g_hAmmoTimer);
-    //KillTimer(g_hEndGameTimer);
-    //g_hEndGameTimer = INVALID_HANDLE;
     if (g_hPrepareGameTimer != INVALID_HANDLE)
     {
         KillTimer(g_hPrepareGameTimer);
