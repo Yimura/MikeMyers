@@ -1,4 +1,4 @@
-# [CS:GO] Mike Myers (v0.1.1)
+# [CS:GO] Mike Myers (v0.1.2)
 
 This is a plugin that tries to bring the popular Call of Duty: Ghosts Mike Myers game mode into CS:GO.
 

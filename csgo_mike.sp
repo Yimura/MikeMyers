@@ -10,7 +10,7 @@
 #pragma semicolon 1
 
 #define PLUGIN_AUTHOR "Yimura"
-#define PLUGIN_VERSION "0.1.1"
+#define PLUGIN_VERSION "0.1.2"
 
 #define TEAM_SPEC 1
 #define TEAM_T 2
@@ -831,7 +831,10 @@ Action Command_Respawn(int client, int args)
     GetCmdArg(1, cTarget, sizeof(cTarget));
     int target = FindTarget(client, cTarget, false, false);
 
-    CS_RespawnPlayer(target);
+    if (target == -1)
+        ReplyToCommand(client, "Unable to find target client.");
+    else
+        CS_RespawnPlayer(target);
 
     return Plugin_Handled;
 }
