@@ -240,6 +240,30 @@ public void OnClientPutInServer(int client)
     SDKHook(client, SDKHook_OnTakeDamage, SDK_OnTakeDamage);
     SDKHook(client, SDKHook_WeaponDrop, SDK_OnWeaponDrop);
 }
+public void OnClientDisconnect(int client)
+{
+    SDKUnhook(client, SDKHook_OnTakeDamage, SDK_OnTakeDamage);
+    SDKUnhook(client, SDKHook_WeaponDrop, SDK_OnWeaponDrop);
+
+    // Check if any clients are remaining if not then we cleanup
+    for(int i = 0; i < MaxClients; i++)
+        if(IsValidClient(i))
+            return;
+
+    g_iGameState = STATE_MAP_LOADED;
+    g_bWarmup = false;
+
+    if (g_hPrepareGameTimer != INVALID_HANDLE)
+    {
+        KillTimer(g_hPrepareGameTimer);
+        g_hPrepareGameTimer = INVALID_HANDLE;
+    }
+
+    ResetCvars();
+
+    g_fMikeSpeed = g_fMikeDefSpeed;
+    g_fSurvivorSpeed = g_fSurvivorDefSpeed;
+}
 
 /**
  * CommandListeners
