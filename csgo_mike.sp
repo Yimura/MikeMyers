@@ -381,7 +381,9 @@ Action OnPlayerSpawn(Event event, const char[] name, bool dontBroadCast)
     if (iTeam == TEAM_CT)
     {
         Client_RemoveAllWeapons(client);
-        GivePlayerItem(client, "weapon_hkp2000");
+        GivePlayerItem(client, "weapon_usp_silencer");
+
+        g_iClientClip[client] = 10;
 
         SetAmmo(client, CS_SLOT_SECONDARY, 2, 10);
     }
