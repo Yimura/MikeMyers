@@ -329,9 +329,9 @@ Action SDK_OnTakeDamage(int victim, int &attacker, int &inflictor, float &damage
 }
 Action SDK_OnPreThink(int client)
 {
-    int iTeam = GetClientTeam(client);
     if (IsValidClient(client, true))
     {
+        int iTeam = GetClientTeam(client);
         if (iTeam == TEAM_T)
             SetSpeed(client, g_fMikeSpeed);
         else if (iTeam == TEAM_CT)
