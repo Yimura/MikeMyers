@@ -105,6 +105,7 @@ Handle
 
 int
     g_iGameState = STATE_NONE,
+    g_iClientClip[MAXPLAYERS+1] = { 10, ... },
 
     g_iDefaultLimitTeams,
 
@@ -265,6 +266,18 @@ public void OnClientDisconnect(int client)
     g_fSurvivorSpeed = g_fSurvivorDefSpeed;
 }
 
+public void OnEntityCreated(int iEnt, const char[] cClassName)
+{
+    if (iEnt != INVALID_ENT_REFERENCE && IsValidEdict(iEnt) && StrContains(cClassName, "Weapon", false) != -1 && StrContains(cClassName, "Weaponworldmodel", false) == -1)
+        SDKHook(iEnt, SDKHook_Reload, SDK_OnReload);
+}
+
+public void OnEntityDestroyed(int iEnt)
+{
+    if (iEnt != INVALID_ENT_REFERENCE)
+        SDKUnhook(iEnt, SDKHook_Reload, SDK_OnReload);
+}
+
 /**
  * CommandListeners
  */
@@ -340,6 +353,27 @@ Action SDK_OnPreThink(int client)
 
     return Plugin_Continue;
 }
+Action SDK_OnReload(int iWeapon)
+{
+    if (iWeapon != INVALID_ENT_REFERENCE && IsValidEdict(iWeapon))
+    {
+        if (GetEntProp(iWeapon, Prop_Data, "m_iClip1") >= 2)
+            return Plugin_Stop;
+
+        int client = GetEntPropEnt(iWeapon, Prop_Send, "m_hOwner");
+
+        if (g_iClientClip[client] == 0)
+            return Plugin_Continue;
+
+        if (g_iClientClip[client] > 0)
+            SetAmmo(client, CS_SLOT_SECONDARY, 0, 2);
+        g_iClientClip[client] -= 2;
+
+        CreateTimer(2.17, Timer_SetClientAmmo, client);
+    }
+
+    return Plugin_Continue;
+}
 
 /**
  * Match Events
@@ -385,7 +419,7 @@ Action OnPlayerSpawn(Event event, const char[] name, bool dontBroadCast)
 
         g_iClientClip[client] = 10;
 
-        SetAmmo(client, CS_SLOT_SECONDARY, 2, 10);
+        CreateTimer(0.1, Timer_SetClientAmmo, client);
     }
     else if (iTeam == TEAM_T)
     {
@@ -735,13 +769,9 @@ void SetAmmo(int client, int wepslot, int clip, int ammo)
     int weapon = GetPlayerWeaponSlot(client, wepslot);
     if (IsValidEntity(weapon))
     {
-        //int iAmmoTable = FindSendPropInfo("CTFWeaponBase", "m_iClip1");
-        //SetEntData(weapon, iAmmoTable, clip, 4, true);
-
-        //int warray = GetEntProp(weapon, Prop_Send, "m_iPrimaryReserveAmmoCount");
-        //iAmmoTable = FindSendPropInfo("CTFPlayer", "m_iAmmo");
-        //SetEntData(client, iAmmoTable + iOffset, ammo, 4, true);
+        SetEntProp(weapon, Prop_Data, "m_iClip1", clip);
         SetEntProp(weapon, Prop_Send, "m_iPrimaryReserveAmmoCount", ammo);
+        SetEntProp(weapon, Prop_Send, "m_iSecondaryReserveAmmoCount", ammo);
     }
 }
 void SetSpeed(int client, float speed)
@@ -826,6 +856,12 @@ Action Timer_RestoreSpeed(Handle timer, int client)
     g_fMikeSpeed = g_fMikeDefSpeed;
 
     g_hSlowDownTimer = INVALID_HANDLE;
+
+    return Plugin_Stop;
+}
+Action Timer_SetClientAmmo(Handle timer, int client)
+{
+    SetAmmo(client, CS_SLOT_SECONDARY, 2, g_iClientClip[client]);
 
     return Plugin_Stop;
 }
