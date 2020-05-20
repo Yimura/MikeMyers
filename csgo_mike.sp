@@ -10,7 +10,7 @@
 #pragma semicolon 1
 
 #define PLUGIN_AUTHOR "Yimura"
-#define PLUGIN_VERSION "0.1.2"
+#define PLUGIN_VERSION "0.1.3"
 
 #define TEAM_SPEC 1
 #define TEAM_T 2
@@ -56,10 +56,18 @@ ConVar
     g_cvSetupTimer,
 
     g_cvIgnoreRoundWinCondition,
+
+    g_cvLimitTeams,
     g_cvTeamBalance,
 
     g_cvMikeSpeed,
     g_cvSurvivorSpeed,
+
+    g_cvSurvivorTeamName,
+    g_cvMikeTeamName,
+
+    g_cvTeamNameCT,
+    g_cvTeamNameT,
 
     g_cvRoundEndDelay,
     g_cvFreezeTime,
@@ -98,13 +106,15 @@ Handle
 int
     g_iGameState = STATE_NONE,
 
-    g_iDefaultFreezeTime = -1,
-    g_iDefaultBuyTime = -1,
-    g_iDefaultTeamBalance = -1,
+    g_iDefaultLimitTeams,
 
-    g_iDefaultRoundTime = -1,
-    g_iDefaultRoundDefuseTime = -1,
-    g_iDefaultRoundHostageTime = -1,
+    g_iDefaultFreezeTime,
+    g_iDefaultBuyTime,
+    g_iDefaultTeamBalance,
+
+    g_iDefaultRoundTime,
+    g_iDefaultRoundDefuseTime,
+    g_iDefaultRoundHostageTime,
 
     g_iMike,
     g_iSetupTimer;
@@ -129,6 +139,9 @@ public void OnPluginStart()
 
     g_cvSurvivorSpeed = CreateConVar("sm_mm_survivorspeed", "320.0", "Change the speed of the survivors.", FCVAR_NOTIFY, true, 220.0, true, 470.0);
     g_cvMikeSpeed = CreateConVar("sm_mm_mikespeed", "400.0", "Change the speed of Mike Myers", FCVAR_NOTIFY, true, 220.0, true, 470.0);
+
+    g_cvSurvivorTeamName = CreateConVar("sm_mm_survivorteamname", "Survivors", "Set the team name of the survivors", FCVAR_NOTIFY);
+    g_cvMikeTeamName = CreateConVar("sm_mm_miketeamname", "Mike Myers", "Set the team name of Mike Myers", FCVAR_NOTIFY);
 
     // Generic Source Events
     HookEvent("player_team", OnPlayerChangeTeam);
@@ -179,6 +192,11 @@ public void OnPluginStart()
     g_cvSolidTeammates = FindConVar("mp_solid_teammates");
 
     g_cvTeamBalance = FindConVar("mp_autoteambalance");
+    g_cvLimitTeams = FindConVar("mp_limitteams");
+
+    g_cvTeamNameCT = FindConVar("mp_teamname_1");
+    g_cvTeamNameT = FindConVar("mp_teamname_2");
+
     g_cvIgnoreRoundWinCondition = FindConVar("mp_ignore_round_win_conditions");
 
     for (int i = 1; i <= MaxClients; i++)
@@ -569,6 +587,16 @@ void SetCvars()
     g_fSurvivorDefSpeed = g_cvSurvivorSpeed.FloatValue;
 
     g_fRoundEndDelay = g_cvRoundEndDelay.FloatValue;
+
+    g_iDefaultLimitTeams = g_cvLimitTeams.IntValue;
+    g_cvLimitTeams.SetInt(0);
+
+    char cTeamName[64];
+    g_cvSurvivorTeamName.GetString(cTeamName, sizeof(cTeamName));
+    g_cvTeamNameCT.SetString(cTeamName);
+
+    g_cvMikeTeamName.GetString(cTeamName, sizeof(cTeamName));
+    g_cvTeamNameT.SetString(cTeamName);
 }
 
 void ResetCvars()
@@ -593,6 +621,11 @@ void ResetCvars()
     g_cvDeathDropGrenade.SetBool(g_bDefaultDeathDropGrenade);
 
     g_cvSolidTeammates.SetBool(g_bDefaultSolidTeammates);
+
+    g_cvLimitTeams.SetInt(g_iDefaultLimitTeams);
+
+    g_cvTeamNameCT.SetString("");
+    g_cvTeamNameT.SetString("");
 }
 
 /**
@@ -723,7 +756,7 @@ Action Timer_CheckTeam(Handle timer, int client)
     //else if (g_iGameState == 2 && team == TEAM_CT && client != g_iMike)
     //    ChangeClientTeam(client, TEAM_T);
 
-    if (team == TEAM_CT && (g_iGameState == STATE_PREP || g_iGameState == STATE_END) && !IsPlayerAlive(client))
+    if (team == TEAM_CT && g_iGameState == STATE_PREP && !IsPlayerAlive(client))
         CS_RespawnPlayer(client);
 
     return Plugin_Stop;
@@ -757,6 +790,13 @@ Action Timer_PrepareGame(Handle timer)
         g_hPrepareGameTimer = INVALID_HANDLE;
         g_iGameState = STATE_ACTIVE;
         g_iSetupTimer = g_cvSetupTimer.IntValue;
+
+        for(int i = 0; i < MaxClients; i++)
+        {
+            if (!IsValidClient(i) || i == g_iMike)
+                continue;
+            PrintCenterText(i, "%N is the Mike Myers!", g_iMike);
+        }
 
         Check1v1();
 
